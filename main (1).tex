@@ -1,0 +1,196 @@
+\documentclass[12pt,a4paper]{article}
+\UseRawInputEncoding
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{geometry}
+\usepackage{setspace}
+\usepackage{hyperref}
+\usepackage{lipsum}
+\usepackage{graphicx}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{titlesec}
+
+\geometry{margin=1in}
+\doublespacing
+
+\title{\textbf{Compound Poisson Process: Theory, Distribution, Sensitivity and R Shiny Implementation}}
+\author{}
+\date{}
+
+% Code formatting settings
+\lstset{
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    keywordstyle=\color{blue},
+    commentstyle=\color{green!50!black},
+    stringstyle=\color{red},
+    frame=single
+}
+
+\begin{document}
+
+\maketitle
+
+\section*{Abstract}
+This document presents the theoretical derivation, distributional properties, and sensitivity analysis of a Compound Poisson Process with exponential interarrival times and exponential jump sizes. The complete R Shiny code for interactive simulation is also included.
+
+\section{Introduction}
+A Compound Poisson Process is a fundamental stochastic model widely used in insurance, finance, queueing systems, and reliability engineering. It describes the cumulative impact of random events occurring over time, where each event contributes a random size.
+
+We assume:
+\begin{itemize}
+    \item Interarrival times follow an exponential distribution with rate $\lambda$.
+    \item Jump sizes $X_i$ are i.i.d.\ exponential with parameter $\mu$.
+\end{itemize}
+
+\section{Theory of the Compound Poisson Process}
+
+Let $N(t)$ be a Poisson process with rate $\lambda$. Define the compound process:
+\[
+S(t) = \sum_{i=1}^{N(t)} X_i
+\]
+where $X_i$ are independent exponential random variables with rate $\mu$, independent of $N(t)$.
+
+\subsection*{Distribution of $S(t)$}
+
+Since
+\[
+N(t) \sim \mathrm{Poisson}(\lambda t),
+\]
+we have:
+\[
+P(N(t) = n) = e^{-\lambda t} \frac{(\lambda t)^n}{n!}.
+\]
+
+Conditional on $N(t)=n$,
+\[
+S(t) \mid N(t)=n \sim \mathrm{Gamma}(n, \mu)
+\]
+because the sum of $n$ i.i.d.\ exponential($\mu$) random variables is Gamma distributed.
+
+Thus, $S(t)$ is a Poisson-Gamma mixture:
+\[
+P(S(t) \le s)
+= \sum_{n=0}^{\infty} e^{-\lambda t}\frac{(\lambda t)^n}{n!} 
+\, F_{\Gamma(n,\mu)}(s).
+\]
+
+\subsection*{Mean and Variance}
+\[
+\mathbb{E}[S(t)] = \lambda t \cdot \frac{1}{\mu},
+\]
+\[
+\mathrm{Var}[S(t)] = 2\frac{\lambda t}{\mu^2}.
+\]
+
+\section{Parameter Sensitivity}
+
+\subsection*{Effect of $\lambda$}
+\begin{itemize}
+    \item Higher $\lambda$: more frequent jumps.
+    \item $S(t)$ increases faster.
+    \item Higher variance.
+\end{itemize}
+
+\subsection*{Effect of $\mu$}
+\begin{itemize}
+    \item Higher $\mu$: smaller mean jump size.
+    \item Smaller $\mu$: larger jump sizes and heavier tail.
+\end{itemize}
+
+These behaviors are visualized interactively through the R Shiny app.
+
+\section{Full R Shiny Code}
+
+\subsection*{R Script}
+
+\begin{lstlisting}[language=R]
+# -------------------------------------------------------------
+# Load Packages
+# -------------------------------------------------------------
+library(shiny)
+library(ggplot2)
+
+# -------------------------------------------------------------
+# UI
+# -------------------------------------------------------------
+ui <- fluidPage(
+  titlePanel("Compound Poisson Process Simulator"),
+
+  sidebarLayout(
+    sidebarPanel(
+      numericInput("lambda", "Arrival Rate (λ)", value = 1, min = 0.1),
+      numericInput("mu", "Exponential Rate (µ)", value = 1, min = 0.1),
+      numericInput("tmax", "Simulation Horizon (t)", value = 10, min = 1),
+      actionButton("go", "Run Simulation")
+    ),
+
+    mainPanel(
+      plotOutput("histPlot"),
+      plotOutput("pathPlot")
+    )
+  )
+)
+
+# -------------------------------------------------------------
+# Server
+# -------------------------------------------------------------
+server <- function(input, output) {
+
+  observeEvent(input$go, {
+
+    # Simulate N(t)
+    N_t <- rpois(1, input$lambda * input$tmax)
+
+    # Simulate X_i
+    X <- rexp(N_t, rate = input$mu)
+
+    # Compute S(t)
+    S_t <- cumsum(X)
+
+    # Event times
+    event_times <- sort(runif(N_t, 0, input$tmax))
+
+    # Histogram of jumps
+    output$histPlot <- renderPlot({
+      df <- data.frame(Jumps = X)
+      ggplot(df, aes(x = Jumps)) +
+        geom_histogram(bins = 30) +
+        ggtitle("Histogram of Jump Sizes X_i")
+    })
+
+    # S(t) step plot
+    output$pathPlot <- renderPlot({
+      df <- data.frame(time = event_times, S = S_t)
+      ggplot(df, aes(x = time, y = S)) +
+        geom_step() +
+        ggtitle("Compound Poisson Process Path: S(t)")
+    })
+  })
+}
+
+# -------------------------------------------------------------
+# Run the App
+# -------------------------------------------------------------
+shinyApp(ui = ui, server = server)
+\end{lstlisting}
+
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width=0.7\textwidth]{hist1.png}
+\caption{Histogram of Exponential Jump Sizes $X_i$}
+\label{fig:hist_jumps}
+\end{figure}
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width=0.7\textwidth]{download.png}
+\caption{Step Path of Compound Poisson Process $S(t)$}
+\label{fig:compound_path}
+\end{figure}
+
+\section{Conclusion}
+This document described the compound Poisson process with exponential jump sizes, derived its distribution, analyzed parameter sensitivity, and provided a complete R Shiny implementation to simulate and visualize the process.
+
+\end{document}
